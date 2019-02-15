@@ -1,4 +1,4 @@
-# labelmkr
+# TERSI-labelmkr(Two-Eyes Recorder Sitting I?（取双目摄像头坐姿检测标签制作器之意）)
 一个依据labelImg开源代码做的能够标注MTCNN所需数据集的数据集制作工具<br>
 A dataset-making tool based on open source code of labelImg that can annotate MTCNN data sets<br>
 
