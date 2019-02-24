@@ -1,0 +1,1 @@
+存储lastOpenDir和defaultSaveDir的值，方便下次打开软件不用重新选择路径。初始值都设为'None'
