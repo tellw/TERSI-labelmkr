@@ -10,11 +10,14 @@ import os.path
 from functools import partial
 from toolBar import ToolBar
 from canvas import Canvas
+import cv2
+import numpy as np
 
+#print(os.getcwd())
 __appname__ = 'TERSI-labelmkr'
 
 def newIcon(icon):
-    return QIcon('./icon/' + icon)
+    return QIcon('./icons/' + icon + '.png')
 
 #将QAction属性全建立完
 def newAction(parent, text, slot=None, shortcut=None, icon=None,
@@ -39,22 +42,30 @@ def newAction(parent, text, slot=None, shortcut=None, icon=None,
     return a
 
 class MainWindow(QMainWindow):
-    def __init__(self, defaultFilename=None, defaultSaveDir=None):
+    def __init__(self, defaultFilename=None):
         super(MainWindow, self).__init__()
+        '''with fopen('log.txt', 'r') with f:
+            self.targetFile = f.readline().strip('\n')
+            targetSaveDir = f.readline().strip('\n')'''
         self.resize(800, 600)
         self.setWindowTitle(__appname__)
         self.filePath = defaultFilename
-        self.lastOpenDir = None
+        with open('config/lastOpenDir.txt', 'r') as f:
+            self.lastOpenDir = f.readline().strip('\n')
         self.dirname = None
         self.mImgList = []
-        self.defaultSaveDir = defaultSaveDir
+        '''if(targetSaveDir == 'None'):
+            self.defaultSaveDir = None
+        else:'''
+        with open('config/defaultSaveDir.txt', 'r') as f:
+            self.defaultSaveDir =  f.readline().strip('\n')
         self.filename = None
         #最近打开文件
         self.recentFiles = []
         self.maxRecent = 7
         #QAction关联到QToolBar并以QToolButton显示出来
         action = partial(newAction, self)
-        open = action('&Open', self.openFile,
+        open_ = action('&Open', self.openFile,
                       'Ctrl+O', 'open', u'Open image or label file')
         opendir = action('&Open Dir', self.openDirDialog,
                          'Ctrl+u', 'open', u'Open Dir')
@@ -66,8 +77,10 @@ class MainWindow(QMainWindow):
                              'a', 'prev', u'Open Prev')
         verify = action('&Verify Image', self.verifyImg,
                         'space', 'verify', u'Verify Image')
-        tools = {open : 'Open', opendir : 'Open Dir', changeSavedir : 'Change Save Dir',
-                 openNextImg : 'Next Image', openPrevImg : 'Prev Image', verify : 'Verify Image'}
+        test = action('&Test Label', self.test, 't', 'test', u'Test Label')
+        tools = {open_ : 'Open', opendir : 'Open Dir', changeSavedir : 'Change Save Dir',
+                 openNextImg : 'Next Image', openPrevImg : 'Prev Image', verify : 'Verify Image',
+                 test: 'Test'}
         tools = tools.items()
         for act, title in tools:
             toolbar = ToolBar(title)
@@ -191,6 +204,8 @@ class MainWindow(QMainWindow):
             
     def importDirImages(self, dirpath):
         self.lastOpenDir = dirpath
+        with open('config/lastOpenDir.txt', 'w') as f:
+            f.write(self.lastOpenDir)
         self.dirname = dirpath
         self.filePath = None
         self.fileListWidget.clear()
@@ -199,18 +214,19 @@ class MainWindow(QMainWindow):
         for imgPath in self.mImgList:
             item = QListWidgetItem(imgPath)
             self.fileListWidget.addItem(item)
-
+    #请选择下面没有包含图片的子目录的目录，否则在测试时可能会出现bug，而且请注意标注文本文件所记录的图片路径名。
     def openDirDialog(self):
-        if self.lastOpenDir and os.path.exists(self.lastOpenDir):
+        if self.lastOpenDir != 'None' and os.path.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
         else:
             defaultOpenDirPath = os.path.dirname(self.filePath) if self.filePath else '.'
+        #print(defaultOpenDirPath)
         targetDirPath = QFileDialog.getExistingDirectory(self, '%s - Open Directory' % __appname__,
                                                          defaultOpenDirPath, QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         self.importDirImages(targetDirPath)
 
     def changeSavedirDialog(self):
-        if self.defaultSaveDir is not None:
+        if self.defaultSaveDir != 'None' and os.path.exists(self.defaultSaveDir):
             path = self.defaultSaveDir
         else:
             path = '.'
@@ -218,6 +234,8 @@ class MainWindow(QMainWindow):
                                                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         if dirpath is not None and len(dirpath) > 1:
             self.defaultSaveDir = dirpath
+        with open('config/defaultSaveDir.txt', 'w') as f:
+            f.write(self.defaultSaveDir)
         self.statusBar().showMessage('%s . Annotation will be saved to %s' % ('Change saved folder',
                                                                               self.defaultSaveDir))
         self.statusBar().show()
@@ -232,9 +250,9 @@ class MainWindow(QMainWindow):
             filename = self.mImgList[currIndex - 1]
             if filename:
                 self.loadFile(filename)
-    
+    #确定保存标记文本文件
     def verifyImg(self):
-        if self.defaultSaveDir is None:
+        if self.defaultSaveDir == 'None':
             self.changeSavedirDialog()
         fname = self.filename.split('.')[0] + '.txt'
         fname = os.path.join(self.defaultSaveDir, fname)
@@ -244,7 +262,28 @@ class MainWindow(QMainWindow):
             for point in self.canvas.points:
                 f.write(' ' + str(point.x()) + ' ' + str(point.y()))
         self.openNextImg()
-            
+    #测试，看标注的情况。
+    def test(self):
+        if self.filename:
+            labelfile = os.path.join(self.defaultSaveDir, self.filename.split('.')[0]+'.txt')
+            if os.path.isfile(labelfile):
+                #self.canvas.test(labelfile)
+                with open(labelfile,'r') as f:
+                    line = f.readline().strip('\n').split(' ')
+                line_len = len(line)
+                img = cv2.imread(os.path.join(self.dirname, self.filename))
+                if line_len > 1:
+                    x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                    if line_len > 5:
+                        for i in range((line_len - 5) // 2):
+                            x = int(float(line[5+2*i]))
+                            y = int(float(line[5+2*i+1]))
+                            cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+                cv2.imshow('Test Image', img)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                
     def fileitemDoubleClicked(self, item=None):
         currIndex = self.mImgList.index(item.text())
         if currIndex < len(self.mImgList):
@@ -269,8 +308,7 @@ def get_main_app(argv=[]):
     app.setWindowIcon(newIcon("app"))
     # Tzutalin 201705+: Accept extra agruments to change predefined class file
     # Usage : labelImg.py image predefClassFile saveDir
-    win = MainWindow(argv[1] if len(argv) >= 2 else None,
-                     argv[2] if len(argv) >= 3 else None)
+    win = MainWindow(argv[1] if len(argv) >= 2 else None)
     win.show()
     return app, win
 
