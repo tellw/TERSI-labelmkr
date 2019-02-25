@@ -9,3 +9,6 @@ This project can label points in order to match the MTCNN to identify the face a
 
 拓展：该制作器只会先允许使用者标注一个方框，方框的位置信息最后会存储入文本文件当中。其后不限制标注点的个数，且每个点的信息都会存入相对应的文本文件中。<br>
 supplement:The maker will only allow the user to mark a box, and the location information for the box will eventually be stored in a text file. Thereafter the number of labeled points is unlimited, and the information for each point is stored in the corresponding text file.<br>
+
+TERSI-labelmkr v1.1 exe文件下载['链接'](https://pan.baidu.com/s/1meQf4NqFrIxvythOQfJi0A) 提取码：cgyq <br>
+downloading TERSI-labelmkr v1.1 .exe file here.['link'](https://pan.baidu.com/s/1meQf4NqFrIxvythOQfJi0A) CAPTCHA：cgyq
