@@ -13,6 +13,7 @@ from canvas import Canvas
 import cv2
 import numpy as np
 
+os.chdir('E:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
 #print(os.getcwd())
 __appname__ = 'TERSI-labelmkr'
 
@@ -78,9 +79,10 @@ class MainWindow(QMainWindow):
         verify = action('&Verify Image', self.verifyImg,
                         'space', 'verify', u'Verify Image')
         test = action('&Test Label', self.test, 't', 'test', u'Test Label')
+        test_sample = action('&Test Sample', self.testSample,'s','testsample', u'Test Sample')
         tools = {open_ : 'Open', opendir : 'Open Dir', changeSavedir : 'Change Save Dir',
                  openNextImg : 'Next Image', openPrevImg : 'Prev Image', verify : 'Verify Image',
-                 test: 'Test'}
+                 test: 'Test', test_sample:'Test Sample'}
         tools = tools.items()
         for act, title in tools:
             toolbar = ToolBar(title)
@@ -214,7 +216,7 @@ class MainWindow(QMainWindow):
         for imgPath in self.mImgList:
             item = QListWidgetItem(imgPath)
             self.fileListWidget.addItem(item)
-    #请选择下面没有包含图片的子目录的目录，否则在测试时可能会出现bug，而且请注意标注文本文件所记录的图片路径名。
+
     def openDirDialog(self):
         if self.lastOpenDir != 'None' and os.path.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
@@ -250,7 +252,7 @@ class MainWindow(QMainWindow):
             filename = self.mImgList[currIndex - 1]
             if filename:
                 self.loadFile(filename)
-    #确定保存标记文本文件
+    
     def verifyImg(self):
         if self.defaultSaveDir == 'None':
             self.changeSavedirDialog()
@@ -262,7 +264,7 @@ class MainWindow(QMainWindow):
             for point in self.canvas.points:
                 f.write(' ' + str(point.x()) + ' ' + str(point.y()))
         self.openNextImg()
-    #测试，看标注的情况。
+
     def test(self):
         if self.filename:
             labelfile = os.path.join(self.defaultSaveDir, self.filename.split('.')[0]+'.txt')
@@ -276,13 +278,42 @@ class MainWindow(QMainWindow):
                     x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
                     if line_len > 5:
+                        count = 1
                         for i in range((line_len - 5) // 2):
                             x = int(float(line[5+2*i]))
                             y = int(float(line[5+2*i+1]))
                             cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+                            cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                            count += 1
                 cv2.imshow('Test Image', img)
                 cv2.waitKey(0)
                 cv2.destroyAllWindows()
+
+    def testSample(self):
+        for file in os.listdir(self.defaultSaveDir):
+            if file.endswith('.txt'):
+                img_path = os.path.join(self.lastOpenDir, file.split('.')[0]+'.jpg')
+                if os.path.exists(img_path):
+                    with open(os.path.join(self.defaultSaveDir, file), 'r') as f:
+                        line = f.readline().strip('\n').split(' ')
+                    line_len = len(line)
+                    img = cv2.imread(img_path)
+                    if line_len > 1:
+                        x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
+                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                        if line_len > 5:
+                            count = 1
+                            for i in range((line_len - 5) // 2):
+                                x = int(float(line[5+2*i]))
+                                y = int(float(line[5+2*i+1]))
+                                cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+                                cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                                count += 1
+                    cv2.imshow('Test Sample - %s'%img_path, img)
+                    keycode = cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    if keycode == 27:
+                        break
                 
     def fileitemDoubleClicked(self, item=None):
         currIndex = self.mImgList.index(item.text())
