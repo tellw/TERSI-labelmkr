@@ -13,7 +13,7 @@ from canvas import Canvas
 import cv2
 import numpy as np
 
-os.chdir('E:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
+#os.chdir('E:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
 #print(os.getcwd())
 __appname__ = 'TERSI-labelmkr'
 
