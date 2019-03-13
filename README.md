@@ -14,7 +14,7 @@ supplement:The maker will only allow the user to mark a box, and the location in
 TERSI-labelmkr v1.1
 增加了查看单张图片标注情况的功能  Add a function that help you check your label work on one picture <br>
 
-TERSI-labelmkr v1.2 exe文件下载['链接'](https://pan.baidu.com/s/1BXrtJkaZsxVfVApap__JDA) 提取码: 9i23<br>
-downloading TERSI-labelmkr v1.2 .exe file here.['link'](https://pan.baidu.com/s/1BXrtJkaZsxVfVApap__JDA) CAPTCHA：9i23 <br>
+TERSI-labelmkr v1.2 exe文件下载['链接'](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) 提取码: 531i<br>
+downloading TERSI-labelmkr v1.2 .exe file here.['link'](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) CAPTCHA：531i <br>
 增加了查看在标注文件保存目录下所有标注文件对应图片目录下的图片标注情况的功能 <br>
 Add a function that help you check all of your label work <br>
