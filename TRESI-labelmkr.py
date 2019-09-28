@@ -12,12 +12,17 @@ from toolBar import ToolBar
 from canvas import Canvas
 import cv2
 import numpy as np
+import urllib
+import requests
+import configparser
 
-#os.chdir('E:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
+#os.chdir('H:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
 #print(os.getcwd())
 __appname__ = 'TERSI-labelmkr'
 
 def newIcon(icon):
+    if not os.path.exists('./icons/'+icon+'.png'):
+        downloadIcons(icon)
     return QIcon('./icons/' + icon + '.png')
 
 #将QAction属性全建立完
@@ -51,15 +56,19 @@ class MainWindow(QMainWindow):
         self.resize(800, 600)
         self.setWindowTitle(__appname__)
         self.filePath = defaultFilename
-        with open('config/lastOpenDir.txt', 'r') as f:
-            self.lastOpenDir = f.readline().strip('\n')
+        cf = configparser.ConfigParser()
+        cf.read('./TERSI-labelmkr.ini')
+        self.lastOpenDir = cf.get('env', 'lastOpenDir')
+        #with open('config/lastOpenDir.txt', 'r') as f:
+            #self.lastOpenDir = f.readline().strip('\n')
         self.dirname = None
         self.mImgList = []
         '''if(targetSaveDir == 'None'):
             self.defaultSaveDir = None
         else:'''
-        with open('config/defaultSaveDir.txt', 'r') as f:
-            self.defaultSaveDir =  f.readline().strip('\n')
+        self.defaultSaveDir = cf.get('env', 'defaultSaveDir')
+        '''with open('config/defaultSaveDir.txt', 'r') as f:
+            self.defaultSaveDir =  f.readline().strip('\n')'''
         self.filename = None
         #最近打开文件
         self.recentFiles = []
@@ -69,9 +78,9 @@ class MainWindow(QMainWindow):
         open_ = action('&Open', self.openFile,
                       'Ctrl+O', 'open', u'Open image or label file')
         opendir = action('&Open Dir', self.openDirDialog,
-                         'Ctrl+u', 'open', u'Open Dir')
+                         'Ctrl+u', 'opendir', u'Open Dir')
         changeSavedir = action('&Change Save Dir', self.changeSavedirDialog,
-                               'Ctrl+r', 'open', u'Change default saved Annotation dir')
+                               'Ctrl+r', 'changesavedir', u'Change default saved Annotation dir')
         openNextImg = action('&Next Image', self.openNextImg,
                              'd', 'next', u'Open Next')
         openPrevImg = action('&Prev Image', self.openPrevImg,
@@ -80,9 +89,10 @@ class MainWindow(QMainWindow):
                         'space', 'verify', u'Verify Image')
         test = action('&Test Label', self.test, 't', 'test', u'Test Label')
         test_sample = action('&Test Sample', self.testSample,'s','testsample', u'Test Sample')
+        delete_img = action('&Delete Img', self.delImg, 'del', 'delimg', u'Delete Img')
         tools = {open_ : 'Open', opendir : 'Open Dir', changeSavedir : 'Change Save Dir',
                  openNextImg : 'Next Image', openPrevImg : 'Prev Image', verify : 'Verify Image',
-                 test: 'Test', test_sample:'Test Sample'}
+                 test: 'Test', test_sample: 'Test Sample', delete_img: 'Delete Img'}
         tools = tools.items()
         for act, title in tools:
             toolbar = ToolBar(title)
@@ -143,8 +153,8 @@ class MainWindow(QMainWindow):
     def loadFile(self, filePath=None):
         self.resetState()
         self.canvas.setEnabled(False)
-        if filePath is None:
-            return
+        if filePath is None or len(filePath) == 0:
+            return False
         print(filePath)
         self.filename = os.path.split(filePath)[-1]
         if self.fileListWidget.count() > 0:
@@ -177,6 +187,7 @@ class MainWindow(QMainWindow):
         if filename:
             if isinstance(filename, (tuple, list)):
                 filename = filename[0]
+            print('open the file '+filename)
             self.loadFile(filename)
 
     def scanAllImages(self, folderPath):
@@ -206,8 +217,11 @@ class MainWindow(QMainWindow):
             
     def importDirImages(self, dirpath):
         self.lastOpenDir = dirpath
-        with open('config/lastOpenDir.txt', 'w') as f:
-            f.write(self.lastOpenDir)
+        cf = configparser.ConfigParser()
+        cf.read('./TERSI-labelmkr.ini')
+        cf.set('env', 'lastOpenDir', self.lastOpenDir)
+        with open('./TERSI-labelmkr.ini', 'w+') as f:
+            cf.write(f)
         self.dirname = dirpath
         self.filePath = None
         self.fileListWidget.clear()
@@ -236,8 +250,11 @@ class MainWindow(QMainWindow):
                                                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         if dirpath is not None and len(dirpath) > 1:
             self.defaultSaveDir = dirpath
-        with open('config/defaultSaveDir.txt', 'w') as f:
-            f.write(self.defaultSaveDir)
+        cf = configparser.ConfigParser()
+        cf.read('./TERSI-labelmkr.ini')
+        cf.set('env', 'defaultSaveDir', self.defaultSaveDir)
+        with open('./TERSI-labelmkr.ini', 'w+') as f:
+            cf.write(f)
         self.statusBar().showMessage('%s . Annotation will be saved to %s' % ('Change saved folder',
                                                                               self.defaultSaveDir))
         self.statusBar().show()
@@ -273,7 +290,9 @@ class MainWindow(QMainWindow):
                 with open(labelfile,'r') as f:
                     line = f.readline().strip('\n').split(' ')
                 line_len = len(line)
-                img = cv2.imread(os.path.join(self.dirname, self.filename))
+                imgpath = os.path.join(self.dirname, self.filename)
+                print(imgpath)
+                img = cv2.imread(imgpath)
                 if line_len > 1:
                     x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
@@ -290,30 +309,33 @@ class MainWindow(QMainWindow):
                 cv2.destroyAllWindows()
 
     def testSample(self):
-        for file in os.listdir(self.defaultSaveDir):
-            if file.endswith('.txt'):
-                img_path = os.path.join(self.lastOpenDir, file.split('.')[0]+'.jpg')
-                if os.path.exists(img_path):
-                    with open(os.path.join(self.defaultSaveDir, file), 'r') as f:
-                        line = f.readline().strip('\n').split(' ')
-                    line_len = len(line)
-                    img = cv2.imread(img_path)
-                    if line_len > 1:
-                        x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
-                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                        if line_len > 5:
-                            count = 1
-                            for i in range((line_len - 5) // 2):
-                                x = int(float(line[5+2*i]))
-                                y = int(float(line[5+2*i+1]))
-                                cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
-                                cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                                count += 1
-                    cv2.imshow('Test Sample - %s'%img_path, img)
-                    keycode = cv2.waitKey(0)
-                    cv2.destroyAllWindows()
-                    if keycode == 27:
-                        break
+        if os.path.exists(self.defaultSaveDir):
+            for file in os.listdir(self.defaultSaveDir):
+                if file.endswith('.txt'):
+                    img_path = os.path.join(self.lastOpenDir, file.split('.')[0]+'.jpg')
+                    if os.path.exists(img_path):
+                        with open(os.path.join(self.defaultSaveDir, file), 'r') as f:
+                            line = f.readline().strip('\n').split(' ')
+                        line_len = len(line)
+                        img = cv2.imread(img_path)
+                        if line_len > 1:
+                            x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
+                            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                            if line_len > 5:
+                                count = 1
+                                for i in range((line_len - 5) // 2):
+                                    x = int(float(line[5+2*i]))
+                                    y = int(float(line[5+2*i+1]))
+                                    cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+                                    cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                                    count += 1
+                        cv2.imshow('Test Sample - %s'%img_path, img)
+                        keycode = cv2.waitKey(0)
+                        cv2.destroyAllWindows()
+                        if keycode == 27:
+                            break
+        else:
+            self.changeSavedirDialog()
                 
     def fileitemDoubleClicked(self, item=None):
         currIndex = self.mImgList.index(item.text())
@@ -321,6 +343,12 @@ class MainWindow(QMainWindow):
             filename = self.mImgList[currIndex]
             if filename:
                 self.loadFile(filename)
+
+    def delImg(self):
+        print('deleting '+self.filePath)
+        self.status('deleting '+self.filePath)
+        os.remove(self.filePath)
+        self.openNextImg()
 
 def read(filename, default=None):
     try:
@@ -343,5 +371,65 @@ def get_main_app(argv=[]):
     win.show()
     return app, win
 
+def init():
+    print('current working directory is '+os.getcwd())
+    os.chdir(os.path.dirname(sys.argv[0]))
+    cf = configparser.ConfigParser()
+    if(os.path.exists('./TERSI-labelmkr.ini')):
+        cf.read('./TERSI-labelmkr.ini')
+        if 'env' not in cf.sections():
+            cf.add_section('env')
+        opts = cf.options('env')
+        print(opts)
+        if not 'defaultSaveDir' in opts:
+            cf.set('env', 'defaultSaveDir', 'None')
+        elif not 'lastOpenDir' in opts:
+            cf.set('env', 'lastOpenDir', '.')
+        elif not 'iconURL' in opts:
+            cf.set('env', 'iconURL', 'https://github.com/tellw/TERSI-labelmkr/tree/master/icons')
+        with open('./TERSI-labelmkr.ini', 'w+') as f:
+            cf.write(f)
+    else:
+        cf.add_section('env')
+        #cf.set('env', 'argv0dir', os.path.dirname(sys.argv[0]))
+        cf.set('env', 'defaultSaveDir', 'None')
+        cf.set('env', 'lastOpenDir', '.')
+        cf.set('env', 'iconURL', 'https://raw.githubusercontent.com/tellw/TERSI-labelmkr/master/icons')
+        #cf.add_section('init')
+        #cf.set('init', 'switch', 1)
+        with open('./TERSI-labelmkr.ini', 'w+') as f:
+            cf.write(f)
+        downloadIcons()
+
+def downloadIcons(icons=['app', 'open', 'opendir', 'changesavedir', 'next', 'prev', 'verify', 'test', 'testsample', 'delimg']):
+    cf = configparser.ConfigParser()
+    cf.read('./TERSI-labelmkr.ini')
+    iconURL = cf.get('env', 'iconURL')
+    if not os.path.exists('./icons'):
+        os.mkdir('./icons')
+    if isinstance(icons, (list, tuple)):
+        for ii in icons:
+            downloadIcon(iconURL, ii)
+    else:
+        downloadIcon(iconURL, icons)
+
+def downloadIcon(iconURL, icon):
+    if not os.path.exists('./icons/'+icon+'.png'):
+        try:
+            '''
+            conn = urllib.request.urlopen(iconURL+'/'+icon+'.png')
+            with open('./icons/'+icon+'.png', 'wb') as f:
+                 f.write(conn.read())
+                 '''
+            urllib.request.urlretrieve(iconURL+'/'+icon+'.png', filename='./icons/'+icon+'.png')
+            '''
+            pic = requests.get(iconURL+'/'+icon+'.png')
+            with open('./icons/'+icon+'.png', 'wb') as f:
+                 f.write(pic.content)'''
+            print('./icons/'+icon+'.png downloaded')
+        except Exception as e:
+            print('downloading ./icons/'+icon+'.png failed caused by '+str(e))
+            
+init()
 app, _win = get_main_app(sys.argv)
 sys.exit(app.exec_())
