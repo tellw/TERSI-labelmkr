@@ -183,11 +183,18 @@ class MainWindow(QMainWindow):
         path = os.path.dirname(self.filePath) if self.filePath else '.'
         formats = ['*.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats()]
         filters = "Image & Label files (%s)" % ' '.join(formats)
-        filename = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
+        filename, _ = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
         if filename:
             if isinstance(filename, (tuple, list)):
+                self.mImgList = filename
                 filename = filename[0]
+            else:
+                self.mImgList = [filename]
             print('open the file '+filename)
+            self.fileListWidget.clear()
+            for imgPath in self.mImgList:
+                item = QListWidgetItem(imgPath)
+                self.fileListWidget.addItem(item)
             self.loadFile(filename)
 
     def scanAllImages(self, folderPath):
