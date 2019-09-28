@@ -348,7 +348,14 @@ class MainWindow(QMainWindow):
         print('deleting '+self.filePath)
         self.status('deleting '+self.filePath)
         os.remove(self.filePath)
+        to_remove = self.filePath
         self.openNextImg()
+        self.mImgList.remove(to_remove)
+        self.fileListWidget.clear()
+        for imgPath in self.mImgList:
+            item = QListWidgetItem(imgPath)
+            self.fileListWidget.addItem(item)
+        
 
 def read(filename, default=None):
     try:
