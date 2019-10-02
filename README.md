@@ -3,7 +3,7 @@
 A dataset-making tool that can annotate MTCNN data sets based on open source code of labelImg<br>
 
 参考了[`labelimg`](https://github.com/tzutalin/labelImg)的代码。<br>
-Refer to the code for ['Labelimg'](HTTPS://GITHUB.COM/TZUTALIN/LABELIMG).<br>
+Refer to the code for [`Labelimg`](HTTPS://GITHUB.COM/TZUTALIN/LABELIMG).<br>
 此项目能够标注点，当然是为了配合MTCNN识别人脸和器官点而确定地标注那几个，暂时功能比较僵硬，而且只能左键画框，右键标点，最后生成的标注文件会记录文件名，一个框和五个点的位置信息。<br>
 This project can label points in order to match the MTCNN to identify the face and organ points.The temporary function is rigid, for you may only label bounding-box with left-click and label points with right-click. The last generated text file will record the file name and location information of the bounding-box and five points.<br>
 
@@ -14,12 +14,12 @@ supplement:The maker will only allow the user to mark a box, and the location in
 TERSI-labelmkr v1.1
 增加了查看单张图片标注情况的功能  Add a function that help you check your label work on one picture <br>
 
-TERSI-labelmkr v1.2 exe文件下载['链接'](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) 提取码: 531i<br>
-downloading TERSI-labelmkr v1.2 .exe file here.['link'](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) CAPTCHA：531i <br>
+TERSI-labelmkr v1.2 exe文件下载[`链接`](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) 提取码: 531i<br>
+downloading TERSI-labelmkr v1.2 .exe file here.[`link`](https://pan.baidu.com/s/176Ije6dCNa2XlFPuHqwh9g) CAPTCHA：531i <br>
 增加了查看在标注文件保存目录下所有标注文件对应图片目录下的图片标注情况的功能 <br>
 Add a function that help you check all of your label work <br>
 
-TERSI-labelmkr v1.3.1 please see ['the link'](https://github.com/tellw/TERSI-labelmkr/releases)<br>
+TERSI-labelmkr v1.3.1 please see [`the link`](https://github.com/tellw/TERSI-labelmkr/releases)<br>
 
 # Tips:
 if you want to run the TERSI-labelmkr.py on your computer, please make sure you have python environment and run the following commands:
