@@ -499,13 +499,19 @@ class MainWindow(QMainWindow):
             if len(self.canvas.rectangles) == 2:
                 rect1 = self.canvas.rectangles[0]
                 rect2 = self.canvas.rectangles[1]
-                x1 = int(min(rect1.x(), rect2.x()))
-                y1 =int(min(rect1.y(), rect2.y()))
-                x2 = int(max(rect1.x(), rect2.x()))
-                y2 = int(max(rect1.y(), rect2.y()))
+                x1 = int(self.regularize_point_pos(x=min(rect1.x(), rect2.x())))
+                y1 =int(self.regularize_point_pos(y=min(rect1.y(), rect2.y())))
+                x2 = int(self.regularize_point_pos(x=max(rect1.x(), rect2.x())))
+                y2 = int(self.regularize_point_pos(y=max(rect1.y(), rect2.y())))
                 croppedim = self.im[y1:y2, x1:x2, :]
+                #cv2.imshow('img', croppedim)
+                #cv2.waitKey()
+                croppedimg = Image.fromarray(cv2.cvtColor(croppedim, cv2.COLOR_BGR2RGB))
                 croppedimpath = os.path.join(self.cropSaveDir, self.filename.split('.')[-2]+'%d%d%d%d.jpg'%(x1, y1, x2, y2))
-                cv2.imwrite(croppedimpath, croppedim)
+                #croppedimg.show()
+                #input()
+                #cv2.imwrite(croppedimpath, croppedim)
+                croppedimg.save(croppedimpath)
                 print('saved %s into %s' % (croppedimpath, self.cropSaveDir))
             else:
                 messageBox = QMessageBox()
@@ -546,7 +552,7 @@ def get_main_app(argv=[]):
 def init():
     print('initializing... current working directory is '+os.getcwd())
     os.chdir(os.path.dirname(sys.argv[0]))
-    print('changing to working directory'+os.path.dirname(sys.argv[0]))
+    print('changing to working directory '+os.path.dirname(sys.argv[0]))
     cf = configparser.ConfigParser()
     if(os.path.exists('./TERSI-labelmkr.ini')):
         cf.read('./TERSI-labelmkr.ini')
@@ -608,13 +614,11 @@ def downloadIcon(iconURL, icon):
             print('downloading ./icons/'+icon+'.png failed caused by '+str(e))
 
 def open_img(imgpath):
-    img = Image.open(imgpath)
+    img = Image.open(imgpath).convert('RGB')
+    #img.show()
     im = np.asarray(img)
-    if len(im.shape) == 2:
-        #pass
-        im = cv2.cvtColor(im, cv2.COLOR_GRAY2BGR)
-    else:
-        im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+    im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+    #cv2.imshow('img', im)
     return im
             
 init()
