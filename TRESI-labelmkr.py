@@ -15,6 +15,8 @@ import numpy as np
 import urllib
 import requests
 import configparser
+import xml.etree.ElementTree as ET
+from PIL import Image
 
 #os.chdir('H:/TERSI-labelmkr/TERSI-labelmkr-v1.0')
 #print(os.getcwd())
@@ -55,24 +57,28 @@ class MainWindow(QMainWindow):
             targetSaveDir = f.readline().strip('\n')'''
         self.resize(800, 600)
         self.setWindowTitle(__appname__)
-        self.filePath = defaultFilename
         cf = configparser.ConfigParser()
         cf.read('./TERSI-labelmkr.ini')
         self.lastOpenDir = cf.get('env', 'lastOpenDir')
         #with open('config/lastOpenDir.txt', 'r') as f:
             #self.lastOpenDir = f.readline().strip('\n')
         self.dirname = None
+        print('you have input some parameters: '+str(defaultFilename))
+        self.filePath = defaultFilename
         self.mImgList = []
         '''if(targetSaveDir == 'None'):
             self.defaultSaveDir = None
         else:'''
         self.defaultSaveDir = cf.get('env', 'defaultSaveDir')
+        self.cropSaveDir = cf.get('env', 'cropSaveDir')
         '''with open('config/defaultSaveDir.txt', 'r') as f:
             self.defaultSaveDir =  f.readline().strip('\n')'''
         self.filename = None
         #最近打开文件
         self.recentFiles = []
         self.maxRecent = 7
+        self.picw = 0
+        self.pich = 0
         #QAction关联到QToolBar并以QToolButton显示出来
         action = partial(newAction, self)
         open_ = action('&Open', self.openFile,
@@ -90,15 +96,26 @@ class MainWindow(QMainWindow):
         test = action('&Test Label', self.test, 't', 'test', u'Test Label')
         test_sample = action('&Test Sample', self.testSample,'s','testsample', u'Test Sample')
         delete_img = action('&Delete Img', self.delImg, 'del', 'delimg', u'Delete Img')
+        crop_and_save = action('&Crop And Save', self.cropAndSave, 'c', 'cropandsave', u'Crop And Save')
+        clear = action('&Clear', self.clear, 'e', 'clear', u'Clear')
         tools = {open_ : 'Open', opendir : 'Open Dir', changeSavedir : 'Change Save Dir',
                  openNextImg : 'Next Image', openPrevImg : 'Prev Image', verify : 'Verify Image',
-                 test: 'Test', test_sample: 'Test Sample', delete_img: 'Delete Img'}
+                 test: 'Test', test_sample: 'Test Sample', delete_img: 'Delete Img', crop_and_save: 'Crop And Save',
+                 clear: 'Clear'}
         tools = tools.items()
+        toolbar = ToolBar('tools')
+        toolbar.setObjectName(u'%s ToolBar' % 'tools')
+        toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         for act, title in tools:
+            '''
             toolbar = ToolBar(title)
             toolbar.setObjectName(u'%s ToolBar' % title)
             toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
             toolbar.addAction(act)
+            self.addToolBar(Qt.LeftToolBarArea, toolbar)
+            '''
+            if act:
+                toolbar.addAction(act)
             self.addToolBar(Qt.LeftToolBarArea, toolbar)
         #中间显示图片区域
         self.canvas = Canvas(parent=self)
@@ -125,6 +142,36 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
         self.labelCoordinates = QLabel('')
         self.statusBar().addPermanentWidget(self.labelCoordinates)
+        print(self.filePath)
+        if self.filePath:
+            if len(self.filePath) == 1:
+                if os.path.isdir(self.filePath[0]):
+                    self.importDirImages(self.filePath[0])
+                elif os.path.isfile(self.filePath[0]):
+                    self.mImgList = self.filePath
+                    print('opening the file '+self.filePath[0])
+                    for imgPath in self.mImgList:
+                        item = QListWidgetItem(imgPath)
+                        self.fileListWidget.addItem(item)
+                    self.loadFile(self.filePath[0])
+            elif len(self.filePath) > 1:
+                self.mImgList = self.filePath
+                for imgPath in self.mImgList:
+                    item = QListWidgetItem(imgPath)
+                    self.fileListWidget.addItem(item)
+                self.loadFile(self.mImgList[0])
+        else:
+            if os.path.exists(self.lastOpenDir):
+                messageBox = QMessageBox()
+                messageBox.setWindowTitle('询问框标题')
+                messageBox.setText('是否载入上次打开的图片目录？')
+                buttonY = messageBox.addButton('确定', QMessageBox.YesRole)
+                buttonN = messageBox.addButton('取消', QMessageBox.NoRole)
+                messageBox.exec_()
+                if messageBox.clickedButton() == buttonY:
+                    self.importDirImages(self.lastOpenDir)
+        if os.path.exists(self.defaultSaveDir):
+            print('your labels\' default save dir is ', self.defaultSaveDir)
 
     def resetState(self):
         self.filePath = None
@@ -142,7 +189,7 @@ class MainWindow(QMainWindow):
         assert not self.image.isNull(), "cannot paint null image"
         self.canvas.adjustSize()
         self.canvas.update()
-
+        
     def addRecentFile(self, filePath):
         if filePath in self.recentFiles:
             self.recentFiles.remove(filePath)
@@ -154,30 +201,33 @@ class MainWindow(QMainWindow):
         self.resetState()
         self.canvas.setEnabled(False)
         if filePath is None or len(filePath) == 0:
-            return False
-        print(filePath)
-        self.filename = os.path.split(filePath)[-1]
-        if self.fileListWidget.count() > 0:
-            index = self.mImgList.index(filePath)
-            fileWidgetItem = self.fileListWidget.item(index)
-            fileWidgetItem.setSelected(True)
-        if os.path.exists(filePath):
-            self.imageData = read(filePath, None)
-            self.canvas.verified = False
-        image = QImage.fromData(self.imageData)
-        if image.isNull():
-            self.errorMessage(u'Error opening file', u"<p>Make sure <i>%s</i> is a valid image file." % filePath)
-            self.status("Error reading %s" % filePath)
-            return False
-        self.status("Loaded %s" % os.path.basename(filePath))
-        self.image = image
-        self.filePath = filePath
-        self.canvas.loadPixmap(QPixmap.fromImage(image))
-        self.canvas.setEnabled(True)
-        self.paintCanvas()
-        self.addRecentFile(self.filePath)
-        self.setWindowTitle(__appname__ + ' ' + filePath)
-        self.canvas.setFocus(True)
+            pass
+        else:
+            print('loading '+filePath)
+            self.filename = os.path.split(filePath)[-1]
+            if self.fileListWidget.count() > 0:
+                index = self.mImgList.index(filePath)
+                fileWidgetItem = self.fileListWidget.item(index)
+                fileWidgetItem.setSelected(True)
+            if os.path.exists(filePath):
+                self.imageData = read(filePath, None)
+                self.canvas.verified = False
+                self.filePath = filePath
+            image = QImage.fromData(self.imageData)
+            if image.isNull():
+                self.errorMessage(u'Error opening file', u"<p>Make sure <i>%s</i> is a valid image file." % filePath)
+                self.status("Error reading %s" % filePath)
+            else:
+                self.status("Loaded %s" % os.path.basename(filePath))
+                self.image = image
+                self.im = open_img(filePath)
+                self.pich, self.picw = self.im.shape[:2]
+                self.canvas.loadPixmap(QPixmap.fromImage(image))
+                self.canvas.setEnabled(True)
+                self.paintCanvas()
+                #self.addRecentFile(self.filePath)
+                self.setWindowTitle(__appname__ + ' ' + filePath)
+                self.canvas.setFocus(True)
         
     def openFile(self):
         path = os.path.dirname(self.filePath) if self.filePath else '.'
@@ -190,7 +240,7 @@ class MainWindow(QMainWindow):
                 filename = filename[0]
             else:
                 self.mImgList = [filename]
-            print('open the file '+filename)
+            print('opening the file '+filename)
             self.fileListWidget.clear()
             for imgPath in self.mImgList:
                 item = QListWidgetItem(imgPath)
@@ -253,10 +303,11 @@ class MainWindow(QMainWindow):
             path = self.defaultSaveDir
         else:
             path = '.'
-        dirpath = QFileDialog.getExistingDirectory(self, '%s - Save text to the directory' % __appname__, path,
+        dirpath = QFileDialog.getExistingDirectory(self, '%s - Save xml to the directory' % __appname__, path,
                                                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         if dirpath is not None and len(dirpath) > 1:
             self.defaultSaveDir = dirpath
+        print('you have chosen save dir: '+self.defaultSaveDir)
         cf = configparser.ConfigParser()
         cf.read('./TERSI-labelmkr.ini')
         cf.set('env', 'defaultSaveDir', self.defaultSaveDir)
@@ -264,6 +315,25 @@ class MainWindow(QMainWindow):
             cf.write(f)
         self.statusBar().showMessage('%s . Annotation will be saved to %s' % ('Change saved folder',
                                                                               self.defaultSaveDir))
+        self.statusBar().show()
+
+    def cropSavedirDialog(self):
+        if self.cropSaveDir != 'None' and os.path.exists(self.cropSaveDir):
+            path = self.cropSaveDir
+        else:
+            path = '.'
+        dirpath = QFileDialog.getExistingDirectory(self, '%s - Save the section to the directory' % __appname__, path,
+                                                   QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
+        if dirpath is not None and len(dirpath) > 1:
+            self.cropSaveDir = dirpath
+        print('you have chosen cropped pic save dir: '+self.cropSaveDir)
+        cf = configparser.ConfigParser()
+        cf.read('./TERSI-labelmkr.ini')
+        cf.set('env', 'cropSaveDir', self.cropSaveDir)
+        with open('./TERSI-labelmkr.ini', 'w+') as f:
+            cf.write(f)
+        self.statusBar().showMessage('%s .jpg file will be saved to %s' % ('Change cropped pic saved folder',
+                                                                              self.cropSaveDir))
         self.statusBar().show()
 
     def openPrevImg(self):
@@ -280,63 +350,109 @@ class MainWindow(QMainWindow):
     def verifyImg(self):
         if self.defaultSaveDir == 'None':
             self.changeSavedirDialog()
-        fname = self.filename.split('.')[0] + '.txt'
+        fname = self.filename.split('.')[0] + '.xml'
         fname = os.path.join(self.defaultSaveDir, fname)
-        print(fname)
+        print('verifying label info of '+fname)
+        '''
         with open(fname, 'w') as f:
             f.write(self.filename)
             for point in self.canvas.points:
                 f.write(' ' + str(point.x()) + ' ' + str(point.y()))
+                '''
+        root = ET.Element('TERSI-label')
+        subElement(root, 'picpath', os.path.abspath(self.filePath))
+        subElement(root, 'xmlpath', fname)
+        size = subElement(root, 'size')
+        subElement(size, 'picw', str(self.picw))
+        subElement(size, 'pich', str(self.pich))
+        for i in range(len(self.canvas.rectangles)//2):
+            leftTop = self.canvas.rectangles[2*i]
+            rightBottom = self.canvas.rectangles[2*i+1]
+            xmin = min(leftTop.x(), rightBottom.x())
+            xmax = max(leftTop.x(), rightBottom.x())
+            ymin = min(leftTop.y(), rightBottom.y())
+            ymax = max(leftTop.y(), rightBottom.y())
+            rectangle = subElement(root, 'rectangle')
+            subElement(rectangle, 'xmin', str(self.regularize_point_pos(x=xmin)))
+            subElement(rectangle, 'xmax', str(self.regularize_point_pos(x=xmax)))
+            subElement(rectangle, 'ymin', str(self.regularize_point_pos(y=ymin)))
+            subElement(rectangle, 'ymax', str(self.regularize_point_pos(y=ymax)))
+        for p in self.canvas.points:
+            point = subElement(root, 'point')
+            subElement(point, 'x', str(self.regularize_point_pos(x=p.x())))
+            subElement(point, 'y', str(self.regularize_point_pos(y=p.y())))
+        tree = ET.ElementTree(root)
+        tree.write(fname, encoding='utf-8', xml_declaration=True)
         self.openNextImg()
 
     def test(self):
         if self.filename:
-            labelfile = os.path.join(self.defaultSaveDir, self.filename.split('.')[0]+'.txt')
-            if os.path.isfile(labelfile):
-                #self.canvas.test(labelfile)
-                with open(labelfile,'r') as f:
-                    line = f.readline().strip('\n').split(' ')
-                line_len = len(line)
-                imgpath = os.path.join(self.dirname, self.filename)
-                print(imgpath)
-                img = cv2.imread(imgpath)
-                if line_len > 1:
-                    x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                    if line_len > 5:
+            if os.path.exists(self.defaultSaveDir):
+                labelfile = os.path.join(self.defaultSaveDir, self.filename.split('.')[0]+'.xml')
+                if os.path.exists(labelfile):
+                    #self.canvas.test(labelfile)
+                    tree = ET.parse(labelfile)
+                    root = tree.getroot()
+                    #print(root.find('picpath'))
+                    #print(self.filePath)
+                    if root.find('picpath').text == self.filePath:
+                        print('testing '+self.filePath)
+                        for rect in root.findall('rectangle'):
+                            x1 = int(float(rect.find('xmin').text))
+                            y1 = int(float(rect.find('ymin').text))
+                            x2 = int(float(rect.find('xmax').text))
+                            y2 = int(float(rect.find('ymax').text))
+                            #print(x1, y1, x2, y2)
+                            cv2.rectangle(self.im, (x1, y1), (x2, y2), (0, 255, 0), 3)
                         count = 1
-                        for i in range((line_len - 5) // 2):
-                            x = int(float(line[5+2*i]))
-                            y = int(float(line[5+2*i+1]))
-                            cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
-                            cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        for p in root.findall('point'):
+                            x = int(float(p.find('x').text))
+                            y = int(float(p.find('y').text))
+                            #print(x, y)
+                            cv2.circle(self.im, (x, y), 2, (0, 0, 255), -1)
+                            cv2.putText(self.im, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                             count += 1
-                cv2.imshow('Test Image', img)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
+                    cv2.imshow('Test Image %s'%self.filePath, self.im)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                else:
+                    '''
+                    box = QMessageBox.information(self,
+                                    "消息框标题",  
+                                    "请核查该图片标注文件存储目录是否正确或者请保存一个标注文件",  
+                                    QMessageBox.Yes)'''
+                    messageBox = QMessageBox()
+                    messageBox.setWindowTitle('消息框标题')
+                    messageBox.setText('请核查该图片标注文件存储目录是否正确或者请保存一个标注文件')
+                    messageBox.addButton(QPushButton('确定'), QMessageBox.YesRole)
+                    messageBox.exec_()
+            else:
+                self.changeSavedirDialog()
 
     def testSample(self):
         if os.path.exists(self.defaultSaveDir):
             for file in os.listdir(self.defaultSaveDir):
-                if file.endswith('.txt'):
-                    img_path = os.path.join(self.lastOpenDir, file.split('.')[0]+'.jpg')
-                    if os.path.exists(img_path):
-                        with open(os.path.join(self.defaultSaveDir, file), 'r') as f:
-                            line = f.readline().strip('\n').split(' ')
-                        line_len = len(line)
-                        img = cv2.imread(img_path)
-                        if line_len > 1:
-                            x1, y1, x2, y2 = (int(float(line[i])) for i in range(1, 5))
+                if file.endswith('.xml'):
+                    tree = ET.parse(os.path.join(self.defaultSaveDir, file))
+                    root = tree.getroot()
+                    picpath = root.find('picpath').text
+                    if os.path.exists(picpath):
+                        img = open_img(picpath)
+                        print('testing '+picpath)
+                        for rect in root.findall('rectangle'):
+                            x1 = int(float(rect.find('xmin').text))
+                            y1 = int(float(rect.find('ymin').text))
+                            x2 = int(float(rect.find('xmax').text))
+                            y2 = int(float(rect.find('ymax').text))
                             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                            if line_len > 5:
-                                count = 1
-                                for i in range((line_len - 5) // 2):
-                                    x = int(float(line[5+2*i]))
-                                    y = int(float(line[5+2*i+1]))
-                                    cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
-                                    cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                                    count += 1
-                        cv2.imshow('Test Sample - %s'%img_path, img)
+                        count = 1
+                        for p in root.findall('point'):
+                            x = int(float(p.find('x').text))
+                            y = int(float(p.find('y').text))
+                            cv2.circle(img, (x, y), 2, (0, 0, 255), -1)
+                            cv2.putText(img, str(count), (x+2, y+2), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                            count += 1
+                        cv2.imshow('Test Sample - %s'%picpath, img)
                         keycode = cv2.waitKey(0)
                         cv2.destroyAllWindows()
                         if keycode == 27:
@@ -362,7 +478,43 @@ class MainWindow(QMainWindow):
         for imgPath in self.mImgList:
             item = QListWidgetItem(imgPath)
             self.fileListWidget.addItem(item)
-        
+
+    def regularize_point_pos(self, x=None, y=None):
+        if x:
+            if x < 0:
+                x = 0
+            elif x >= self.picw:
+                x = self.picw-1
+            return x
+        elif y:
+            if y < 0:
+                y = 0
+            elif y >= self.pich:
+                y = self.pich-1
+            return y
+
+    def cropAndSave(self):
+        if self.filename:
+            self.cropSavedirDialog()
+            if len(self.canvas.rectangles) == 2:
+                rect1 = self.canvas.rectangles[0]
+                rect2 = self.canvas.rectangles[1]
+                x1 = int(min(rect1.x(), rect2.x()))
+                y1 =int(min(rect1.y(), rect2.y()))
+                x2 = int(max(rect1.x(), rect2.x()))
+                y2 = int(max(rect1.y(), rect2.y()))
+                croppedim = self.im[y1:y2, x1:x2, :]
+                croppedimpath = os.path.join(self.cropSaveDir, self.filename.split('.')[-2]+'%d%d%d%d.jpg'%(x1, y1, x2, y2))
+                cv2.imwrite(croppedimpath, croppedim)
+                print('saved %s into %s' % (croppedimpath, self.cropSaveDir))
+            else:
+                messageBox = QMessageBox()
+                messageBox.setWindowTitle('消息框标题')
+                messageBox.setText('请标注一个矩形，如此才能截取')
+                messageBox.addButton(QPushButton('确定'), QMessageBox.YesRole)
+                messageBox.exec_()
+    def clear(self):
+        self.canvas.resetState()
 
 def read(filename, default=None):
     try:
@@ -370,6 +522,12 @@ def read(filename, default=None):
             return f.read()
     except:
         return default
+
+def subElement(root, tag, text=''):
+    ele = ET.SubElement(root, tag)
+    ele.text = text
+    ele.tail = '\n'
+    return ele
                                                    
 def get_main_app(argv=[]):
     """
@@ -381,46 +539,51 @@ def get_main_app(argv=[]):
     app.setWindowIcon(newIcon("app"))
     # Tzutalin 201705+: Accept extra agruments to change predefined class file
     # Usage : labelImg.py image predefClassFile saveDir
-    win = MainWindow(argv[1] if len(argv) >= 2 else None)
+    win = MainWindow(argv[1:] if len(argv) >= 2 else None)
     win.show()
     return app, win
 
 def init():
-    print('current working directory is '+os.getcwd())
+    print('initializing... current working directory is '+os.getcwd())
     os.chdir(os.path.dirname(sys.argv[0]))
+    print('changing to working directory'+os.path.dirname(sys.argv[0]))
     cf = configparser.ConfigParser()
     if(os.path.exists('./TERSI-labelmkr.ini')):
         cf.read('./TERSI-labelmkr.ini')
         if 'env' not in cf.sections():
             cf.add_section('env')
         opts = cf.options('env')
-        print(opts)
-        if not 'defaultSaveDir' in opts:
+        print('.ini file has options: ', opts)
+        #print('defaultsavedir' in opts)
+        if not 'defaultsavedir' in opts:
             cf.set('env', 'defaultSaveDir', 'None')
-        elif not 'lastOpenDir' in opts:
-            cf.set('env', 'lastOpenDir', '.')
-        elif not 'iconURL' in opts:
+        if not 'lastopendir' in opts:
+            cf.set('env', 'lastOpenDir', 'None')
+        if not 'iconurl' in opts:
             cf.set('env', 'iconURL', 'https://github.com/tellw/TERSI-labelmkr/tree/master/icons')
+        if not 'cropsavedir' in opts:
+            cf.set('env', 'cropSaveDir', 'None')
         with open('./TERSI-labelmkr.ini', 'w+') as f:
             cf.write(f)
     else:
         cf.add_section('env')
         #cf.set('env', 'argv0dir', os.path.dirname(sys.argv[0]))
         cf.set('env', 'defaultSaveDir', 'None')
-        cf.set('env', 'lastOpenDir', '.')
+        cf.set('env', 'lastOpenDir', 'None')
         cf.set('env', 'iconURL', 'https://raw.githubusercontent.com/tellw/TERSI-labelmkr/master/icons')
+        cf.set('env', 'cropSaveDir', 'None')
         #cf.add_section('init')
         #cf.set('init', 'switch', 1)
         with open('./TERSI-labelmkr.ini', 'w+') as f:
             cf.write(f)
+    if not os.path.exists('icons'):
+        os.mkdir('icons')
         downloadIcons()
 
-def downloadIcons(icons=['app', 'open', 'opendir', 'changesavedir', 'next', 'prev', 'verify', 'test', 'testsample', 'delimg']):
+def downloadIcons(icons=['app', 'open', 'opendir', 'changesavedir', 'next', 'prev', 'verify', 'test', 'testsample', 'delimg', 'cropandsave', 'clear']):
     cf = configparser.ConfigParser()
     cf.read('./TERSI-labelmkr.ini')
     iconURL = cf.get('env', 'iconURL')
-    if not os.path.exists('./icons'):
-        os.mkdir('./icons')
     if isinstance(icons, (list, tuple)):
         for ii in icons:
             downloadIcon(iconURL, ii)
@@ -443,6 +606,16 @@ def downloadIcon(iconURL, icon):
             print('./icons/'+icon+'.png downloaded')
         except Exception as e:
             print('downloading ./icons/'+icon+'.png failed caused by '+str(e))
+
+def open_img(imgpath):
+    img = Image.open(imgpath)
+    im = np.asarray(img)
+    if len(im.shape) == 2:
+        #pass
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2BGR)
+    else:
+        im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+    return im
             
 init()
 app, _win = get_main_app(sys.argv)

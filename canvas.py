@@ -22,8 +22,9 @@ class Canvas(QWidget):
         #产生小数
         self.scale = 1.0
         self.verified = False
-        #要被 存入txt中的点坐标
+        #要被 存入xml中的点坐标及矩形框点坐标
         self.points = []
+        self.rectangles = []
         self.rectDrawing = False
         self.prevPoint = None
 
@@ -65,15 +66,15 @@ class Canvas(QWidget):
         self.overrideCursor(CURSOR_DRAW)
         self.prevPoint = pos
         if Qt.LeftButton & ev.buttons():
-            self.points[1] = pos
+            self.rectangles[-1] = pos
         self.update()
 
     def mousePressEvent(self, ev):
         pos = self.transformPos(ev.pos())
         if ev.button() == Qt.LeftButton:
             self.rectDrawing = True
-            self.points.append(pos)
-            self.points.append(pos)
+            self.rectangles.append(pos)
+            self.rectangles.append(pos)
         if ev.button() == Qt.RightButton:
             self.points.append(pos)
         self.update()
@@ -82,7 +83,7 @@ class Canvas(QWidget):
         pos = self.transformPos(ev.pos())
         if ev.button() == Qt.LeftButton:
             self.rectDrawing = False
-            self.points[1] = pos
+            self.rectangles[-1] = pos
             self.update()
         if ev.button() == Qt.RightButton:
             pass
@@ -124,34 +125,27 @@ class Canvas(QWidget):
             p.setPen(QColor(0, 0, 0))
             p.drawLine(self.prevPoint.x(), 0, self.prevPoint.x(), self.pixmap.height())
             p.drawLine(0, self.prevPoint.y(), self.pixmap.width(), self.prevPoint.y())
-        if self.rectDrawing and len(self.points) == 2:
-            leftTop = self.points[0]
-            rightBottom = self.points[1]
-            rectWidth = rightBottom.x() - leftTop.x()
-            rectHeight = rightBottom.y() - leftTop.y()
-            p.setPen(self.drawingRectColor)
-            brush = QBrush(Qt.BDiagPattern)
-            p.setBrush(brush)
-            p.drawRect(leftTop.x(), leftTop.y(), rectWidth, rectHeight)
-        if not self.rectDrawing and len(self.points) >= 2:
-            leftTop = self.points[0]
-            rightBottom = self.points[1]
-            rectWidth = rightBottom.x() - leftTop.x()
-            rectHeight = rightBottom.y() - leftTop.y()
-            p.setPen(self.drawingRectColor)
-            brush = QBrush(Qt.BDiagPattern)
-            p.setBrush(brush)
-            p.drawRect(leftTop.x(), leftTop.y(), rectWidth, rectHeight)
-            if len(self.points) > 2:
-                for point in self.points[2:]:
-                    p.setPen(self.drawingPointColor)
-                    brush = QBrush(Qt.BDiagPattern)
-                    p.setBrush(brush)
-                    p.drawEllipse(point.x() - 2, point.y() - 2, 4, 4)
+        if len(self.rectangles) > 0:
+            for i in range(len(self.rectangles)//2):
+                leftTop = self.rectangles[2*i]
+                rightBottom = self.rectangles[2*i+1]
+                rectWidth = abs(rightBottom.x() - leftTop.x())
+                rectHeight = abs(rightBottom.y() - leftTop.y())
+                p.setPen(self.drawingRectColor)
+                brush = QBrush(Qt.BDiagPattern)
+                p.setBrush(brush)
+                p.drawRect(min(leftTop.x(), rightBottom.x()), min(leftTop.y(), rightBottom.y()), rectWidth, rectHeight)
+        if len(self.points) > 0:
+            for point in self.points:
+                p.setPen(self.drawingPointColor)
+                brush = QBrush(Qt.BDiagPattern)
+                p.setBrush(brush)
+                p.drawEllipse(point.x() - 2, point.y() - 2, 4, 4)
         p.end()
 
     def resetState(self):
         self.points.clear()
-        self.restoreCursor()
-        self.pixmap = None
+        self.rectangles.clear()
+        #self.restoreCursor()
+        #self.pixmap = None
         self.update()
