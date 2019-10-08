@@ -21,7 +21,7 @@ downloading TERSI-labelmkr v1.2 .exe file here.[`link`](https://pan.baidu.com/s/
 增加了查看在标注文件保存目录下所有标注文件对应图片目录下的图片标注情况的功能 <br>
 Add a function that help you check all of your label work <br>
 
-TERSI-labelmkr v1.4 please see [`the link`](https://github.com/tellw/TERSI-labelmkr/releases)<br>
+TERSI-labelmkr v1.4.1 please see [`the link`](https://github.com/tellw/TERSI-labelmkr/releases)<br>
 
 # Tips:
 if you want to run the TERSI-labelmkr.py on your computer, please make sure you have python environment and run the following commands:
