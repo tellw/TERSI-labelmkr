@@ -480,13 +480,13 @@ class MainWindow(QMainWindow):
             self.fileListWidget.addItem(item)
 
     def regularize_point_pos(self, x=None, y=None):
-        if x:
+        if x is not None:
             if x < 0:
                 x = 0
             elif x >= self.picw:
                 x = self.picw-1
             return x
-        elif y:
+        elif y is not None:
             if y < 0:
                 y = 0
             elif y >= self.pich:
