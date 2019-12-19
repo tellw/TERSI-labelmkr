@@ -28,5 +28,6 @@ if you want to run the TERSI-labelmkr.py on your computer, please make sure you 
 ```bash
 git clone https://github.com/tellw/TERSI-labelmkr
 pip install PyQt5 functools opencv-python requests configparser Pillow lxml
+cd TERSI-labelmkr
 python TERSI-labelmkr.py
 ```
